@@ -249,7 +249,7 @@ func (fs *FirestoreBackend) GetPairBuckets(ctx context.Context, pair string, fro
 	// we want to return empty list and not null + size here
 	pairs := make([]*models.PairBucket, 0, n)
 
-	// TODO this should be removed for pulling from aggregated data at given interva
+	// TODO this should be removed for pulling from aggregated data at given intervals
 	// we have to go backwards to sum, to align windows for now, but still insert in chronological order
 	for _, pair := range pbs {
 		var ie *models.PairBucket
@@ -337,7 +337,7 @@ func (fs *FirestoreBackend) GetTokenBuckets(ctx context.Context, token string, f
 	// want to default to empty list, but also size
 	tokens := make([]*models.TokenBucket, 0, n)
 
-	// TODO this should be removed for pulling from aggregated data at given interva
+	// TODO this should be removed for pulling from aggregated data at given intervals
 	// we have to go backwards to sum, to align windows for now, but still insert in chronological order
 	for _, tok := range tbs {
 		var ie *models.TokenBucket

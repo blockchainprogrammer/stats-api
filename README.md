@@ -4,7 +4,9 @@ API for collected stats.
 
 ## Building
 
-Avoid using `go mod vendor` for this project because of https://github.com/golang/go/issues/26366.
+Do not use `go mod vendor` for this project.
+`cgo` dependencies require `hidapi.h` and `secp256k1.h` files which both not available in vendored variant 
+because of https://github.com/golang/go/issues/26366.
 
 ## Running
 

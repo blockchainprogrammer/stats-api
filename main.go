@@ -109,6 +109,11 @@ func main() {
 			})
 		})
 	})
+
+	// CoinGecko integration
+	r.Get("/pairs", errorHandler(getPairsCoinGecko))
+	r.Get("/tickers", errorHandler(getTickersCoinGecko))
+
 	// Start server
 	_ = goapibase.Start(ctx, gotils.Port(8080), r)
 }
@@ -483,5 +488,55 @@ func collect(w http.ResponseWriter, r *http.Request) error {
 	}
 	l.Info().Println("Collector complete")
 	gotils.WriteMessage(w, http.StatusOK, "ok")
+	return nil
+}
+
+// getPairsCoinGecko returns a list of all pairs in a format required by CoinGecko
+func getPairsCoinGecko(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+
+	pairs, err := db.GetPairs(ctx)
+	if err != nil {
+		return err
+	}
+	type Pair struct {
+		TickerId string `json:"ticker_id"`
+		Base     string `json:"base"`
+		Target   string `json:"target"`
+	}
+	ret := make([]Pair, len(pairs))
+	for _, td := range pairs {
+		names := strings.Split(td.Pair, "-")
+		pair := Pair{
+			names[0] + "_" + names[1],
+			names[0],
+			names[1],
+		}
+		ret = append(ret, pair)
+	}
+
+	gotils.WriteObject(w, http.StatusOK, map[string]interface{}{
+		"pairs": ret,
+	})
+	return nil
+}
+
+// getTickersCoinGecko "provides 24-hour pricing and volume information on each market pair"
+// in a format required by CoinGecko
+func getTickersCoinGecko(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+
+	timeEnd := time.Now().UTC()
+	timeFrame := 24 * time.Hour * 1
+	timeStart := time.Now().UTC().Add(-timeFrame)
+
+	stats, err := db.GetPairBuckets(ctx, "", timeStart, timeEnd, timeFrame)
+	if err != nil {
+		return err
+	}
+	// TODO Also needs to merge with GetTotals() and more
+	gotils.WriteObject(w, http.StatusOK, map[string]interface{}{
+		"stats": stats,
+	})
 	return nil
 }

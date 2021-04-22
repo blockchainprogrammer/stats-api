@@ -18,7 +18,6 @@ require (
 	github.com/treeder/goapibase v0.0.6
 	github.com/treeder/gotils v0.0.15
 	go.uber.org/zap v1.16.0 // indirect
-	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/tools v0.0.0-20200909210914-44a2922940c2 // indirect
 	google.golang.org/api v0.31.0
