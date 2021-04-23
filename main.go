@@ -113,12 +113,15 @@ func main() {
 	})
 
 	// CoinGecko integration
-	r.Get("/pairs", errorHandler(getPairsCoinGecko))
-	r.Get("/tickers", errorHandler(getTickersCoinGecko))
-	r.Route("/historical_trades", func(r chi.Router) {
-		r.Get("/", errorHandler(getPairsStats))
-		r.Route("/{ticker_id}", func(r chi.Router) {
-			r.Get("/", errorHandler(getPairBucketsCoinGecko))
+	r.Route("/v1/coingecko", func(r chi.Router) {
+		r.Get("/pairs", errorHandler(getPairsCoinGecko))
+		r.Get("/tickers", errorHandler(getTickersCoinGecko))
+		r.Get("/orderbook", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("{}")) })
+		r.Route("/historical_trades", func(r chi.Router) {
+			r.Get("/", errorHandler(getPairsStats))
+			r.Route("/{ticker_id}", func(r chi.Router) {
+				r.Get("/", errorHandler(getPairBucketsCoinGecko))
+			})
 		})
 	})
 
@@ -531,7 +534,7 @@ func getPairsCoinGecko(w http.ResponseWriter, r *http.Request) error {
 		Base     string `json:"base"`
 		Target   string `json:"target"`
 	}
-	ret := make([]Pair, len(pairs))
+	ret := make([]Pair, 0)
 	for _, td := range pairs {
 		names := strings.Split(td.Pair, "-")
 		if len(names) > 1 {
@@ -559,13 +562,53 @@ func getTickersCoinGecko(w http.ResponseWriter, r *http.Request) error {
 	timeFrame := 24 * time.Hour * 1
 	timeStart := time.Now().UTC().Add(-timeFrame)
 
+	tokenStats, err := db.GetTokenBuckets(ctx, "", timeStart, timeEnd, timeFrame)
+	if err != nil {
+		return err
+	}
+	tokenInfo := make(map[string]*models.TokenBucket)
+	for _, bucket := range tokenStats {
+		tokenInfo[bucket.Symbol] = bucket
+	}
+
 	stats, err := db.GetPairBuckets(ctx, "", timeStart, timeEnd, timeFrame)
 	if err != nil {
 		return err
 	}
-	// TODO Also needs to merge with GetTotals() and more
+
+	type Ticker struct {
+		TickerId       string          `json:"ticker_id"`
+		BaseCurrency   string          `json:"base_currency"`
+		TargetCurrency string          `json:"target_currency"`
+		LastPrice      decimal.Decimal `json:"last_price"`
+		BaseVolume     decimal.Decimal `json:"base_volume"`
+		TargetVolume   decimal.Decimal `json:"target_volume"`
+		Bid            decimal.Decimal `json:"bid"`
+		Ask            decimal.Decimal `json:"ask"`
+		High           decimal.Decimal `json:"high"`
+		Low            decimal.Decimal `json:"low"`
+	}
+	ret := make([]Ticker, 0)
+	for _, bucket := range stats {
+		names := strings.Split(bucket.Pair, "-")
+		if len(names) > 1 {
+			lastPrice := decimal.NewFromInt(0)
+			if !bucket.Price1USD.IsZero() {
+				lastPrice = bucket.Price0USD.DivRound(bucket.Price1USD, 2)
+			}
+			ticker := Ticker{
+				TickerId:       names[0] + "_" + names[1],
+				BaseCurrency:   names[0],
+				TargetCurrency: names[1],
+				LastPrice:      lastPrice,
+				BaseVolume:     tokenInfo[names[0]].VolumeUSD,
+				TargetVolume:   tokenInfo[names[1]].VolumeUSD,
+			}
+			ret = append(ret, ticker)
+		}
+	}
 	gotils.WriteObject(w, http.StatusOK, map[string]interface{}{
-		"stats": stats,
+		"tickers": ret,
 	})
 	return nil
 }
@@ -609,14 +652,14 @@ func getPairBucketsCoinGecko(w http.ResponseWriter, r *http.Request) error {
 	if limit > 0 && int64(len(pairs)) > limit {
 		pairs = pairs[0:limit] // dumb
 	}
-	for _, pair := range pairs {
+	for _, pr := range pairs {
 		if t == "" || t == "buy" {
 			trade := Trade{
 				TradeId:        0,
-				Price:          pair.Price1USD,
-				BaseVolume:     pair.Amount0In,
-				TargetVolume:   pair.Amount0Out,
-				TradeTimestamp: pair.Time.Unix(),
+				Price:          pr.Price1USD,
+				BaseVolume:     pr.Amount0In,
+				TargetVolume:   pr.Amount0Out,
+				TradeTimestamp: pr.Time.Unix(),
 				Type:           "buy",
 			}
 			buy = append(buy, trade)
@@ -624,10 +667,10 @@ func getPairBucketsCoinGecko(w http.ResponseWriter, r *http.Request) error {
 		if t == "" || t == "sell" {
 			trade := Trade{
 				TradeId:        0,
-				Price:          pair.Price0USD,
-				BaseVolume:     pair.Amount1In,
-				TargetVolume:   pair.Amount1Out,
-				TradeTimestamp: pair.Time.Unix(),
+				Price:          pr.Price0USD,
+				BaseVolume:     pr.Amount1In,
+				TargetVolume:   pr.Amount1Out,
+				TradeTimestamp: pr.Time.Unix(),
 				Type:           "sell",
 			}
 			sell = append(sell, trade)
