@@ -87,6 +87,31 @@ func (fs *FirestoreBackend) GetPair(ctx context.Context, address string) (*model
 	return nil, gotils.ErrNotFound
 }
 
+// GetPairByName returns pair by name
+func (fs *FirestoreBackend) GetPairByName(ctx context.Context, name string) (*models.Pair, error) {
+	iter := fs.c.Collection(CollectionPairs).Where("pair", "==", name).
+		Documents(ctx)
+	defer iter.Stop()
+
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, gotils.C(ctx).Errorf("error getting data: %v", err)
+		}
+		t := &models.Pair{}
+		err = doc.DataTo(t)
+		if err != nil {
+			return nil, gotils.C(ctx).Errorf("%v", err)
+		}
+		t.AfterLoad(ctx)
+		return t, nil
+	}
+	return nil, gotils.ErrNotFound
+}
+
 // GetTokens returns all the available tokens
 func (fs *FirestoreBackend) GetTokens(ctx context.Context) ([]*models.Token, error) {
 	tokens := make([]*models.Token, 0)
