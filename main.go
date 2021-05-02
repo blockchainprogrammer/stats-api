@@ -593,7 +593,7 @@ func getTickersCoinGecko(w http.ResponseWriter, r *http.Request) error {
 		names := strings.Split(bucket.Pair, "-")
 		if len(names) > 1 {
 			lastPrice := decimal.NewFromInt(0)
-			if !bucket.Price1USD.IsZero() {
+			if !(bucket.Price0USD.IsZero() || bucket.Price1USD.IsZero()) {
 				lastPrice = bucket.Price0USD.DivRound(bucket.Price1USD, 2)
 			}
 			ticker := Ticker{
@@ -601,8 +601,8 @@ func getTickersCoinGecko(w http.ResponseWriter, r *http.Request) error {
 				BaseCurrency:   names[0],
 				TargetCurrency: names[1],
 				LastPrice:      lastPrice,
-				BaseVolume:     tokenInfo[names[0]].VolumeUSD,
-				TargetVolume:   tokenInfo[names[1]].VolumeUSD,
+				BaseVolume:     tokenInfo[names[0]].AmountIn.Add(tokenInfo[names[0]].AmountOut),
+				TargetVolume:   tokenInfo[names[1]].AmountIn.Add(tokenInfo[names[1]].AmountOut),
 			}
 			ret = append(ret, ticker)
 		}
